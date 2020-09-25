@@ -36,10 +36,6 @@ import 'package:tencent_trtccalling_plugin/trtc_calling_delegate.dart';
 /// sCall.destroy();
 /// TRTCCallingImpl.destroySharedInstance();
 abstract class TRTCCalling {
-  static final int TYPE_UNKNOWN = 0;
-  static final int TYPE_AUDIO_CALL = 1;
-  static final int TYPE_VIDEO_CALL = 2;
-
   static TRTCCalling sTRTCCalling;
 
   /// 获取单例
@@ -57,6 +53,9 @@ abstract class TRTCCalling {
       sTRTCCalling = null;
     }
   }
+
+  /// 初始化
+  void init();
 
   /// 销毁函数，如果不需要再运行该实例，请调用该接口
   void destroy();
@@ -138,10 +137,39 @@ abstract class TRTCCalling {
 }
 
 enum CallType {
+  UNKNOWN,
   // 语音
   VOICE,
   // 视频
   VIDEO,
+}
+
+extension CallTypeExtension on CallType {
+  int get value {
+    switch (this) {
+      case CallType.UNKNOWN:
+        return 0;
+      case CallType.VOICE:
+        return 1;
+      case CallType.VIDEO:
+        return 2;
+      default:
+        return null;
+    }
+  }
+
+  CallType from(int value) {
+    switch (value) {
+      case 0:
+        return CallType.UNKNOWN;
+      case 1:
+        return CallType.VOICE;
+      case 2:
+        return CallType.VIDEO;
+      default:
+        return null;
+    }
+  }
 }
 
 abstract class ActionCallBack {

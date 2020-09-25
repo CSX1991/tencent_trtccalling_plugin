@@ -1,3 +1,5 @@
+import 'package:tencent_trtccalling_plugin/trtc_calling.dart';
+
 abstract class TRTCCallingDelegate {
   /// sdk内部发生了错误
   /// code 错误码
@@ -9,7 +11,7 @@ abstract class TRTCCallingDelegate {
   /// userIdList 同时还被邀请的人
   /// isFromGroup 是否IM群组邀请
   /// callType 邀请类型 1-语音通话，2-视频通话
-  void onInvited(String sponsor, List<String> userIdList, bool isFromGroup, int callType);
+  void onInvited(String sponsor, List<String> userIdList, bool isFromGroup, CallType callType);
 
   /// 正在IM群组通话时，如果其他与会者邀请他人，会收到此回调
   /// 例如 A-B-C 正在IM群组中，A邀请[D、E]进入通话，B、C会收到[D、E]的回调

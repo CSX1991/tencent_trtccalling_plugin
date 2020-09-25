@@ -1,3 +1,4 @@
+import 'package:tencent_trtccalling_plugin/trtc_calling.dart';
 import 'package:tencent_trtccalling_plugin/trtc_calling_delegate.dart';
 
 class InternalListenerManager implements TRTCCallingDelegate {
@@ -53,7 +54,7 @@ class InternalListenerManager implements TRTCCallingDelegate {
   }
 
   @override
-  void onInvited(String sponsor, List<String> userIdList, bool isFromGroup, int callType) {
+  void onInvited(String sponsor, List<String> userIdList, bool isFromGroup, CallType callType) {
     for (TRTCCallingDelegate delegate in delegateWeakReference[this]) {
       delegate?.onInvited(sponsor, userIdList, isFromGroup, callType);
     }
