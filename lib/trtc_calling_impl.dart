@@ -2,11 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter/src/widgets/framework.dart';
 import 'package:tencent_im_plugin/entity/message_entity.dart';
+import 'package:tencent_im_plugin/entity/session_entity.dart';
 import 'package:tencent_im_plugin/enums/message_node_type.dart';
 import 'package:tencent_im_plugin/message_node/custom_message_node.dart';
 import 'package:tencent_im_plugin/tencent_im_plugin.dart';
 import 'package:tencent_rtc_plugin/entity/video_enc_param_entity.dart';
 import 'package:tencent_rtc_plugin/tencent_rtc_plugin.dart';
+import 'package:tencent_trtccalling_plugin/listener/signaling_listener.dart';
 import 'package:tencent_trtccalling_plugin/model/call_model.dart';
 import 'package:tencent_trtccalling_plugin/model/calling_cache_data.dart';
 import 'package:tencent_trtccalling_plugin/model/internal_listener_manager.dart';
@@ -16,7 +18,7 @@ import 'package:tencent_trtccalling_plugin/trtc_calling_delegate.dart';
 import 'package:tencent_trtccalling_plugin/utils/collection_utils.dart';
 import 'package:tencent_trtccalling_plugin/utils/string_utils.dart';
 
-class TRTCCallingImpl extends TRTCCalling {
+class TRTCCallingImpl extends TRTCCalling implements SignalingListener {
   Widget videoView;
   CallingCacheData cacheData = CallingCacheData();
   InternalListenerManager internalListenerManager;
@@ -28,7 +30,7 @@ class TRTCCallingImpl extends TRTCCalling {
       if (node.nodeType == MessageNodeType.Custom) {
         CustomMessageNode customNode = node;
         Map json = jsonDecode(customNode.data);
-        if (json['key'] != SignalingInfo.signalMessageKey) {
+        if (json['message_type'] != SignalingInfo.signalMessageKey) {
           return;
         }
         var signalMessage = SignalingInfo().from(json);
@@ -37,7 +39,25 @@ class TRTCCallingImpl extends TRTCCalling {
     }
   }
 
-  void messageDispatch(SignalingInfo data) {}
+  void messageDispatch(SignalingInfo data) {
+    switch (data.actionType) {
+      case SignalingActionType.INVITE:
+        onReceiveNewInvitation(data.inviteId, data.inviter, data.groupId, data.inviteeList, data);
+        break;
+      case SignalingActionType.ACCEPT_INVITE:
+        onInviteeAccepted(data.inviteId, data.inviter, data);
+        break;
+      case SignalingActionType.CANCEL_INVITE:
+        onInvitationCancelled(data.inviteId, data.inviter, data);
+        break;
+      case SignalingActionType.INVITE_TIMEOUT:
+        onInvitationTimeout(data.inviteId, data.inviteeList);
+        break;
+      case SignalingActionType.REJECT_INVITE:
+        onInviteeRejected(data.inviteId, data.inviter, data);
+        break;
+    }
+  }
 
   @override
   void init() {
@@ -247,6 +267,30 @@ class TRTCCallingImpl extends TRTCCalling {
 
   _sendMessage(String userId, CallActionType actionType, CallModel model) {
     // todo
+    CallModel callModel = model?.clone();
+    if (model == null) {
+      callModel = CallModel();
+      callModel.action = actionType;
+    }
+
+    if (actionType == CallActionType.HANGUP && callModel.isGroup && cacheData.inRoom) {
+      callModel.duration = (DateTime.now().millisecondsSinceEpoch - cacheData.enterRoomTime) ~/ 1000;
+      cacheData.enterRoomTime = 0;
+    }
+
+    SignalingInfo signalingInfo = SignalingInfo();
+    signalingInfo.callActionType = callModel.action;
+    String messageData = jsonEncode(signalingInfo);
+    CustomMessageNode message = CustomMessageNode(data: messageData);
+
+    if (callModel.isGroup) {
+      TencentImPlugin.sendMessage(sessionId: callModel.groupId, sessionType: SessionType.Group, node: message);
+    } else {
+      TencentImPlugin.sendMessage(sessionId: userId, sessionType: SessionType.C2C, node: message);
+    }
+
+
+
   }
 
   CallModel _createModel(String inviteId, String groupId, List<String> invitees, SignalingInfo signaling) {
@@ -259,5 +303,59 @@ class TRTCCallingImpl extends TRTCCalling {
     model.callType = signaling.callType;
     model.roomId = signaling.roomId;
     return model;
+  }
+
+  @override
+  void onInvitationCancelled(String inviteId, String inviter, SignalingInfo data) {
+    if (inviteId == cacheData.currentCallerId) {
+      cacheData.reset();
+      internalListenerManager?.onCallingCancel();
+    }
+  }
+
+  @override
+  void onInvitationTimeout(String inviteId, List<String> inviteeList) {
+    if (inviteId != cacheData.currentCallerId) {
+      return;
+    }
+    if (StringUtils.isEmpty(cacheData.currentSponsorForMe)) {
+      /// 邀请者
+      for (String userId in inviteeList) {
+        internalListenerManager?.onNoResp(userId);
+      }
+    } else {
+      /// 被邀请者
+      if (inviteeList.contains(cacheData.currentLoginUserId)) {
+        cacheData.reset();
+        internalListenerManager?.onCallingTimeout();
+      }
+      cacheData.currentInvitedList.removeWhere((element) => inviteeList.contains(element));
+    }
+    _preExitRoom(null);
+  }
+
+  @override
+  void onInviteeAccepted(String inviteId, String invitee, SignalingInfo data) {
+    cacheData.currentInvitedList.remove(invitee);
+  }
+
+  @override
+  void onInviteeRejected(String inviteId, String invitee, SignalingInfo data) {
+    if (inviteId != cacheData.currentCallerId) {
+      return;
+    }
+    cacheData.currentInvitedList.remove(invitee);
+    if (data.callActionType == CallActionType.LINE_BUSY) {
+      internalListenerManager?.onLineBusy(invitee);
+    } else {
+      internalListenerManager?.onReject(invitee);
+    }
+    _preExitRoom(null);
+  }
+
+  @override
+  void onReceiveNewInvitation(
+      String inviteId, String inviter, String groupId, List<String> inviteeList, SignalingInfo data) {
+    _processInvite(inviteId, inviter, groupId, inviteeList, data);
   }
 }

@@ -36,6 +36,8 @@ class CallingCacheData {
     lastCallModel.version = CallModel.VALUE_PROTOCOL_VERSION;
   }
 
+  bool get inRoom => enterRoomTime != 0;
+
   bool get isGroup => StringUtils.isNotEmpty(currentGroupId);
 
   void startCall() {

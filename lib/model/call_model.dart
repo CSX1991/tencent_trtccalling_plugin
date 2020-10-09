@@ -2,6 +2,7 @@ import 'package:tencent_im_plugin/enums/message_node_type.dart';
 import 'package:tencent_im_plugin/message_node/custom_message_node.dart';
 import 'package:tencent_im_plugin/message_node/message_node.dart';
 import 'package:tencent_trtccalling_plugin/trtc_calling.dart';
+import 'package:tencent_trtccalling_plugin/utils/string_utils.dart';
 
 /// 自定义消息的bean实体，用来与json的相互转化
 class CallModel {
@@ -46,6 +47,8 @@ class CallModel {
   // 超时时间，单位秒
   int timeout;
   String data;
+
+  bool get isGroup => StringUtils.isNotEmpty(groupId);
 
   static CallModel convert2VideoCallData(MessageNode messageNode) {
     if (messageNode.nodeType != MessageNodeType.Custom) {

@@ -1,9 +1,9 @@
+import 'package:tencent_trtccalling_plugin/model/call_model.dart';
 import 'package:tencent_trtccalling_plugin/trtc_calling.dart';
 
 class SignalingInfo {
-  static String signalMessageKey = "signal_message";
+  static String signalMessageKey = "calling_signal_message";
 
-  String key = signalMessageKey;
   int businessId = 0;
   String inviteId;
   String groupId;
@@ -14,8 +14,10 @@ class SignalingInfo {
   int version;
   bool callEnd;
   CallType callType;
+  CallActionType callActionType;
   SignalingActionType actionType;
   List<String> inviteeList = List();
+  String messageType = signalMessageKey;
 
   SignalingInfo from(Map map) {
     return SignalingInfo();
